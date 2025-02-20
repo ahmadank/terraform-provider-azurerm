@@ -80,6 +80,21 @@ func resourceKubernetesClusterNodePool() *pluginsdk.Resource {
 			pluginsdk.ForceNewIfChange("upgrade_settings.0.drain_timeout_in_minutes", func(ctx context.Context, old, new, meta interface{}) bool {
 				return old != 0 && new == 0
 			}),
+			// The behaviour of the API requires this
+			func(ctx context.Context, d *pluginsdk.ResourceDiff, meta interface{}) error {
+				if raw, ok := d.GetOk("node_network_profile"); ok {
+					profiles := raw.([]interface{})
+					if len(profiles) > 0 {
+						profile := profiles[0].(map[string]interface{})
+						if _, ok := profile["application_security_group_ids"]; ok {
+							if portsRaw, portsOk := profile["allowed_host_ports"]; !portsOk || len(portsRaw.([]interface{})) == 0 {
+								return fmt.Errorf("allowed_host_ports cannot be empty when application_security_group_ids is defined")
+							}
+						}
+					}
+				}
+				return nil
+			},
 		),
 	}
 }
